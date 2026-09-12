@@ -54,6 +54,9 @@ export function ProductsPage() {
     filters.setPage(nextPage)
   }
 
+ 
+  const refreshing = searchPending || (loading && Boolean(products))
+
   return (
     <div className="space-y-7">
       <div className="relative overflow-hidden rounded-4xl border-[3px] border-ink bg-linear-to-br from-sand to-cream px-8 py-9 shadow-hard-lg">
@@ -118,10 +121,10 @@ export function ProductsPage() {
             />
           ) : (
             <div
-              aria-busy={searchPending}
+              aria-busy={refreshing}
               className={cn(
                 'transition-opacity duration-200 ease-out',
-                searchPending ? 'pointer-events-none opacity-40' : 'opacity-100',
+                refreshing ? 'pointer-events-none opacity-40' : 'opacity-100',
               )}
             >
               <div className="grid animate-rise gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -139,7 +142,7 @@ export function ProductsPage() {
             }}
             onPageChange={goToPage}
             disabled={loading}
-            busy={searchPending}
+            busy={refreshing}
             noun={search ? 'matches' : 'items in stock'}
           />
         </>
