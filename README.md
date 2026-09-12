@@ -3,6 +3,11 @@
 Browse a catalogue of game items imported from CSV, sign in, buy an item with
 gems, and read the receipt.
 
+**Live demo: <https://tamatem-task.onrender.com>** — the login screen carries a
+seeded account (`demo` / `demo-password`) and a button that fills it in.
+[API docs](https://tamatem-task.onrender.com/api/docs) are served from the same
+origin.
+
 | Part | Stack | Detail |
 | --- | --- | --- |
 | [`backend/`](backend/) | Python 3.12, Flask, SQLAlchemy, JWT, pytest | [backend/README.md](backend/README.md) |
