@@ -1,0 +1,29 @@
+# Render Blueprint: one web service that serves the API and the React bundle.
+# Import this from the Render dashboard ("New > Blueprint") and point it at the
+# repository; everything below is created for you except DATABASE_URL, which is
+# pasted in from Neon.
+services:
+  - type: web
+    name: tamatem-task
+    runtime: docker
+    plan: free
+    # Closest Render region to Amman.
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Render waits for this to return 2xx before routing traffic to a new deploy.
+    healthCheckPath: /api/health
+    envVars:
+      # Generated once by Render and kept across deploys. Signing keys never
+      # belong in the repository, and nothing here needs to know their values.
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      # Set by hand to the Neon connection string. sync:false keeps it out of
+      # the blueprint and prompts for it when the service is created.
+      - key: DATABASE_URL
+        sync: false
+      # Matches the credentials shown on the deployed login screen.
+      - key: DEMO_USER_PASSWORD
+        value: demo-password
