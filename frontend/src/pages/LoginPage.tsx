@@ -3,6 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 
 import { login } from '@/api/auth'
 import { ApiError } from '@/api/client'
+import {
+  DemoCredentials,
+  demoCredentials,
+} from '@/components/auth/DemoCredentials'
 import { Button } from '@/components/ui/Button'
 import { FormInput } from '@/components/ui/FormInput'
 import { useAuth } from '@/context/auth-context'
@@ -58,6 +62,19 @@ export function LoginPage() {
     }
   }
 
+  function fillDemoCredentials() {
+    if (demoCredentials === null) {
+      return
+    }
+
+    setIdentifier(demoCredentials.identifier)
+    setPassword(demoCredentials.password)
+    // Clearing these keeps a failed attempt from the reviewer's own typing
+    // still marked on fields that now hold known-good values.
+    setClientErrors({})
+    setError(null)
+  }
+
   const fieldErrors = { ...(error?.fieldErrors() ?? {}), ...clientErrors }
 
   return (
@@ -93,6 +110,8 @@ export function LoginPage() {
       >
         Enter the market
       </Button>
+
+      <DemoCredentials onFill={fillDemoCredentials} disabled={submitting} />
     </form>
   )
 }
