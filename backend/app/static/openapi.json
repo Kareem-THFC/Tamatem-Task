@@ -1,0 +1,881 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tamatem Commerce API",
+    "version": "1.0.0",
+    "description": "A small commerce API: browse products, sign in, and buy items with a gem balance.\n\n**Response envelopes.** Every success is wrapped in `data`; list endpoints add a sibling `pagination`. Every expected failure is wrapped in `error` with a stable machine-readable `code`. Clients should branch on `code`, not on the message text.\n\n**Money.** Prices and gem balances are JSON strings such as `\"150.00\"`, not numbers. They are stored as exact decimals, and serialising them as floats would reintroduce the rounding errors that choice exists to avoid.\n\n**Authentication.** `POST /api/auth/register` and `POST /api/auth/login` both return an access token. Send it as `Authorization: Bearer <token>` on the order endpoints."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:5000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Creating an account and signing in"
+    },
+    {
+      "name": "Products",
+      "description": "Browsing the imported catalogue"
+    },
+    {
+      "name": "Orders",
+      "description": "Buying products and reading receipts"
+    },
+    {
+      "name": "System",
+      "description": "Operational endpoints"
+    }
+  ],
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Create an account",
+        "description": "Creates a user and returns a token, so signing up also signs you in. The account starts with 500 gems, taken from the database default rather than the request, so a client cannot ask to be created rich.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created and signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`USER_ALREADY_EXISTS` - the username or email is taken. The message names which one, because a signup form has to be able to say what to change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "USER_ALREADY_EXISTS",
+                    "message": "That email address is already registered."
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Sign in",
+        "description": "Accepts a username **or** an email address as the `identifier`. Matching is case-insensitive for both.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`INVALID_CREDENTIALS`. Deliberately identical whether the account does not exist or the password is wrong, so the endpoint does not reveal which identifiers are registered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_CREDENTIALS",
+                    "message": "Invalid identifier or password."
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/products": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "List products",
+        "description": "Paginated at the database level. A page past the last one returns an empty list rather than a 404, which is easier for a frontend to render. Authentication is optional: send a token to have `owned` reflect your purchases, otherwise it is false for every product.",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "name": "location",
+            "in": "query",
+            "required": false,
+            "description": "Filter by location code, matched exactly against the upper-cased stored value. Sending the parameter empty (`?location=`) means no filter, so a cleared dropdown lists everything.",
+            "schema": {
+              "type": "string",
+              "maxLength": 10
+            },
+            "example": "JO"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Free text matched case-insensitively against the product title and description. `%` and `_` are matched literally rather than as LIKE wildcards. Sending the parameter empty (`?search=`) means no filter, so a cleared search box lists everything. Narrows alongside `location` rather than replacing it.",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "example": "sword"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Result ordering. `default` is by product id, the order the CSV supplied. `price_asc` and `price_desc` order by price. Every ordering breaks ties on the product id, so paging through equally priced items cannot show one twice or skip it. An unrecognised value is a 422 rather than being ignored.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "default",
+                "price_asc",
+                "price_desc"
+              ],
+              "default": "default"
+            },
+            "example": "price_asc"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of products",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/products/{product_id}": {
+      "get": {
+        "tags": [
+          "Products"
+        ],
+        "summary": "Get one product",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Product"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND`. A non-numeric id never reaches the handler - no route matches, so Flask itself answers 404.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "PRODUCT_NOT_FOUND",
+                    "message": "Product not found."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": " Authentication is optional: send a token to have `owned` reflect your purchases, otherwise it is false for every product."
+      }
+    },
+    "/api/orders": {
+      "post": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Buy a product",
+        "description": "Buys one unit of a product, paying with the account's gem balance.\n\nThe request carries **only** a product id. The price is read from the database, so a price sent by the client cannot influence what is charged - the request model has no price field to parse one into. The debit and the order insert share a single transaction, so an order can never exist without the gems having been spent.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Purchased. The body is the receipt, with the product nested so a receipt page renders from one request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Order"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "`PRODUCT_NOT_FOUND`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "PRODUCT_NOT_FOUND",
+                    "message": "Product not found."
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Two conditions share this status, distinguished by `error.code`.\n\n`INSUFFICIENT_GEM_BALANCE` - the balance does not cover the price.\n\n`PRODUCT_ALREADY_OWNED` - the account has already bought this product. An account may own a given product once; the rule is enforced by the `uq_orders_user_product` constraint as well as by a check before anything is charged.\n\nA 409 rather than a 422 in both cases because the request itself is valid; it is the state of the account that prevents it. Nothing is written and no gems are spent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "insufficientBalance": {
+                    "summary": "Balance too low",
+                    "value": {
+                      "error": {
+                        "code": "INSUFFICIENT_GEM_BALANCE",
+                        "message": "This purchase costs 200.00 gems but your balance is 150.00."
+                      }
+                    }
+                  },
+                  "alreadyOwned": {
+                    "summary": "Product already owned",
+                    "value": {
+                      "error": {
+                        "code": "PRODUCT_ALREADY_OWNED",
+                        "message": "You already own this item. It is in your orders."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "List your orders",
+        "description": "Returns only the authenticated user's own orders, newest first. Ownership is part of the query rather than a check afterwards, so another account's history cannot be returned by accident.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/PageSize"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of receipts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "pagination"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Order"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/orders/{order_id}": {
+      "get": {
+        "tags": [
+          "Orders"
+        ],
+        "summary": "Get one receipt",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/Order"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "`ORDER_NOT_FOUND`. Also returned for an order that belongs to **another** user: a 403 would confirm the order exists, so someone else's order is made indistinguishable from one that was never created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "ORDER_NOT_FOUND",
+                    "message": "Order not found."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Readiness check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The API is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "example": "ok"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "status": "ok"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Paste the `access_token` from register or login. Send it as `Authorization: Bearer <token>`."
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "1-based page number.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "PageSize": {
+        "name": "page_size",
+        "in": "query",
+        "required": false,
+        "description": "Records per page. An oversized value is rejected with a 422 rather than silently clamped.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "`AUTHENTICATION_REQUIRED` (missing token, or the account no longer exists), `INVALID_TOKEN`, or `TOKEN_EXPIRED`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "AUTHENTICATION_REQUIRED",
+                "message": "Authentication is required."
+              }
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "`VALIDATION_ERROR`. Every field that failed is listed in `details`, so a form can show all of its errors from one request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Request validation failed.",
+                "details": [
+                  {
+                    "field": "password",
+                    "message": "String should have at least 8 characters"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "`UNSUPPORTED_MEDIA_TYPE` - the body was not sent as `application/json`.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "email",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 80,
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "description": "Letters, digits, dot, underscore and hyphen only. The restriction matters because a username is also a login identifier, so a name containing an `@` would be ambiguous with an email address. Stored with the capitalisation you send, but compared case-insensitively, so a name already taken in another case is rejected.",
+            "example": "new-player"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255,
+            "description": "Stored lower-cased, so the same mailbox cannot be registered twice in different capitalisation.",
+            "example": "new.player@example.com"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "description": "Never whitespace-trimmed, since whitespace is significant in a password.",
+            "example": "a-good-password"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "identifier",
+          "password"
+        ],
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Username or email address.",
+            "example": "demo"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "example": "demo-password"
+          }
+        }
+      },
+      "CreateOrderRequest": {
+        "type": "object",
+        "required": [
+          "product_id"
+        ],
+        "properties": {
+          "product_id": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          }
+        },
+        "description": "There is deliberately no price or quantity field. A purchase is one item, and the amount charged is always read from the stored product."
+      },
+      "AuthResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "access_token",
+              "user"
+            ],
+            "properties": {
+              "access_token": {
+                "type": "string",
+                "example": "eyJhbGciOiJIUzI1NiIs..."
+              },
+              "user": {
+                "$ref": "#/components/schemas/User"
+              }
+            }
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "description": "Only fields safe to publish. `password_hash` is excluded by construction: serialisation lists fields explicitly rather than iterating over columns.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "demo"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "demo@example.com"
+          },
+          "gem_balance": {
+            "type": "string",
+            "description": "Current balance as an exact decimal string. New accounts start at 500.00.",
+            "example": "500.00"
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "title": {
+            "type": "string",
+            "example": "Sword of Valor"
+          },
+          "description": {
+            "type": "string",
+            "example": "A legendary sword with magical powers"
+          },
+          "price": {
+            "type": "string",
+            "description": "Price in gems, as an exact decimal string.",
+            "example": "150.00"
+          },
+          "location": {
+            "type": "string",
+            "example": "JO"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-09T06:03:27"
+          },
+          "owned": {
+            "type": "boolean",
+            "description": "Whether the authenticated caller has already bought this product. Always false for an anonymous request, so the field is always present. An owned product cannot be bought again.",
+            "example": false
+          }
+        }
+      },
+      "Order": {
+        "type": "object",
+        "description": "A receipt. `total_price` and `gem_balance_after` are copied onto the order when it is created, so a later price change or a later purchase never rewrites what a past order actually cost.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "user_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "total_price": {
+            "type": "string",
+            "description": "Gems charged, read from the product at purchase time.",
+            "example": "150.00"
+          },
+          "gem_balance_before": {
+            "type": "string",
+            "description": "Balance before the purchase. Derived as `gem_balance_after + total_price` rather than stored a second time, so the two figures cannot disagree.",
+            "example": "500.00"
+          },
+          "gem_balance_after": {
+            "type": "string",
+            "description": "Balance the purchase left behind, snapshotted on the order.",
+            "example": "350.00"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-09-09T20:38:00"
+          },
+          "product": {
+            "$ref": "#/components/schemas/Product"
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total matching records.",
+            "example": 100
+          },
+          "pages": {
+            "type": "integer",
+            "description": "Total number of pages.",
+            "example": 5
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code. Branch on this, not on the message.",
+                "example": "PRODUCT_NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "example": "Product not found."
+              },
+              "details": {
+                "type": "array",
+                "description": "Present only for `VALIDATION_ERROR`.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "field": {
+                      "type": "string",
+                      "example": "product_id"
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Field required"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
+}
