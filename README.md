@@ -1,12 +1,12 @@
 # Tamatem Commerce Assignment
 
-Browse a catalogue of game items imported from CSV, sign in, buy an item with
-gems, and read the receipt.
-
 **Live demo: <https://tamatem-task.onrender.com>** — the login screen carries a
 seeded account (`demo` / `demo-password`) and a button that fills it in.
 [API docs](https://tamatem-task.onrender.com/api/docs) are served from the same
 origin.
+
+Browse a catalogue of game items imported from CSV, sign in, buy an item with
+gems, and read the receipt.
 
 | Part | Stack | Detail |
 | --- | --- | --- |
