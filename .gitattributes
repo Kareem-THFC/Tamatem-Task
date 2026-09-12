@@ -1,0 +1,9 @@
+# Normalise line endings in the repository so a checkout on any platform is
+# consistent.
+* text=auto
+
+# These are read by Linux tooling inside the container. A CRLF checkout makes
+# the shebang unparseable and the image fails to start with a "bad interpreter"
+# error that points at the wrong thing entirely.
+*.sh text eol=lf
+Dockerfile text eol=lf
