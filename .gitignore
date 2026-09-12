@@ -1,0 +1,13 @@
+# Python virtual environments and generated files
+.venv/
+backend/instance/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local configuration
+.env
+backend/.env
+
+# Local SQLite databases
+*.db
