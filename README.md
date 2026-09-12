@@ -78,6 +78,35 @@ Set-Location backend; pytest
 and the OpenAPI spec, against a throwaway in-memory database. The frontend has
 no automated tests — a known gap; it was verified by hand against the API.
 
+## Deployment
+
+The deployed demo is one service: Flask serves the API *and* the built React
+bundle, so there is a single origin, a single deploy, and no CORS in
+production. [`Dockerfile`](Dockerfile) builds the bundle in a Node stage and
+copies it into the Python image; [`render.yaml`](render.yaml) describes the
+Render service; [`docker-entrypoint.sh`](docker-entrypoint.sh) migrates and
+seeds on boot before handing off to gunicorn.
+
+| Piece | Choice | Why |
+| --- | --- | --- |
+| Host | Render (Docker, free) | One service, no build-tooling assumptions |
+| Database | Neon Postgres (free) | Permanent free tier; Render's own free database expires after 30 days |
+| Server | gunicorn | The Flask development server is single-threaded and not meant to face the internet |
+
+Deploying it yourself needs two environment values: `DATABASE_URL` from Neon,
+and a `SECRET_KEY`/`JWT_SECRET_KEY` pair, which Render generates. Everything
+else has a working default.
+
+Two details the platform forces:
+
+- **Seeding runs on every boot**, not once. A free instance is restarted
+  whenever it is redeployed or wakes from idle, so start-up re-applies
+  migrations and re-imports the catalogue. Both steps are idempotent — the
+  importer upserts by external id, the demo user is created or reset.
+- **Connections are checked before use.** Serverless Postgres suspends when
+  idle and drops pooled connections with it, so the engine is configured with
+  `pool_pre_ping`; without it the first request after a quiet period fails.
+
 ## Design decisions
 
 **Money is never a float.** `Numeric(10, 2)` in the database, `Decimal` in the
