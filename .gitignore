@@ -11,3 +11,6 @@ backend/.env
 
 # Local SQLite databases
 *.db
+
+# React bundle copied into the Flask app by the Docker build.
+backend/app/frontend_dist/

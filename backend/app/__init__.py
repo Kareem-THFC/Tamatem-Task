@@ -11,6 +11,7 @@ from app.routes.docs import docs_bp
 from app.routes.health import health_bp
 from app.routes.orders import orders_bp
 from app.routes.products import products_bp
+from app.routes.spa import register_spa
 
 # Secrets have no safe default: a missing value must stop startup rather than
 # surface later as a confusing failure when the first token is signed.
@@ -78,5 +79,9 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.register_blueprint(health_bp, url_prefix="/api")
     app.register_blueprint(products_bp, url_prefix="/api")
     app.register_blueprint(orders_bp, url_prefix="/api")
+
+    # Registered last so every API rule already exists: the bundle's catch-all
+    # route is the fallback for client-side paths, not a competitor to them.
+    register_spa(app)
 
     return app
