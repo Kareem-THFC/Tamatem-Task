@@ -1,0 +1,210 @@
+/* Tailwind v4 is configured here rather than in a tailwind.config.js. Tokens
+   in @theme become CSS variables and utilities alike (--color-coin -> bg-coin). */
+@import 'tailwindcss';
+
+@theme {
+  /* ---- Palette ----
+     Warm ink is the universal outline, so it is a border colour far more
+     often than a text colour. */
+
+  /* Grounds, lightest surface last */
+  --color-canvas: #f0e6d8; /* the page itself */
+  --color-cream: #fff3e4; /* panels, inputs */
+  --color-sand: #ffe7c9; /* hero washes, active nav */
+  --color-surface: #fffdf9; /* cards */
+
+  /* Ink */
+  --color-ink: #2a1a14; /* outlines, headings */
+  --color-ink-soft: #5c4a42; /* body copy */
+  --color-ink-muted: #8a7268; /* labels, meta */
+
+  /* Tamatem tomato: every commit action and the mascot */
+  --color-tomato: #e63329;
+  --color-tomato-dark: #b81e17;
+  --color-tomato-light: #ff7a63;
+  /* A darker tomato, not a transparent black, so the button reads as solid. */
+  --color-tomato-shadow: #9e1c15;
+
+  /* Failure. Distinct from tomato so a refusal cannot read as a brand CTA. */
+  --color-danger: #c4231b;
+  --color-danger-bg: #ffece6;
+  --color-danger-ink: #8a3a30;
+
+  /* Decorative */
+  --color-violet: #7b5cff;
+  --color-violet-dark: #4a2fc7;
+  --color-violet-bg: #e4dbff;
+  --color-sky: #48c6ff;
+  --color-sky-bg: #cfefff;
+
+  /* Value and success */
+  --color-coin: #ffc53d;
+  --color-leaf: #3fae49;
+  --color-leaf-dark: #2e8b3c;
+  --color-leaf-bg: #dcf2dc;
+
+  /* Disabled / sold-out greys, warmed so they sit in the same family */
+  --color-muted: #c2b4ac;
+  --color-muted-ink: #9c8b82;
+
+  /* ---- Type ----
+     Fredoka carries display copy and every numeral representing value;
+     Nunito carries body text, labels and fields. */
+  --font-display: 'Fredoka', ui-rounded, system-ui, sans-serif;
+  --font-sans: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* ---- Hard shadows ----
+     Offset straight down with zero blur, so surfaces read as stickers and a
+     button can visibly sink when pressed. */
+  --shadow-hard-xs: 0 4px 0 rgba(42, 26, 20, 0.14);
+  --shadow-hard-sm: 0 5px 0 rgba(42, 26, 20, 0.18);
+  --shadow-hard: 0 8px 0 rgba(42, 26, 20, 0.16);
+  --shadow-hard-lg: 0 12px 0 rgba(42, 26, 20, 0.16);
+  --shadow-hard-xl: 0 16px 0 rgba(42, 26, 20, 0.18);
+
+  /* ---- Motion ----
+     Keyframes sit inside @theme so Tailwind emits them alongside the
+     matching --animate-* utility. */
+  --animate-bob: bob 4s ease-in-out infinite;
+  --animate-floaty: floaty 7s ease-in-out infinite;
+  --animate-floaty2: floaty2 8.5s ease-in-out infinite;
+  --animate-pop: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-shimmer: shimmer 1.3s linear infinite;
+  --animate-ringpulse: ringpulse 2.4s ease-out infinite;
+  --animate-confetti: confetti 3.6s linear infinite;
+  --animate-rise: rise 0.16s ease-out both;
+
+  @keyframes bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+
+  @keyframes floaty {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    50% {
+      transform: translateY(-14px) rotate(6deg);
+    }
+  }
+
+  @keyframes floaty2 {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    50% {
+      transform: translateY(10px) rotate(-8deg);
+    }
+  }
+
+  @keyframes pop {
+    0% {
+      transform: scale(0.7);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -320px 0;
+    }
+    100% {
+      background-position: 320px 0;
+    }
+  }
+
+  @keyframes ringpulse {
+    0% {
+      transform: scale(1);
+      opacity: 0.55;
+    }
+    100% {
+      transform: scale(1.55);
+      opacity: 0;
+    }
+  }
+
+  @keyframes confetti {
+    0% {
+      transform: translateY(-30px) rotate(0);
+      opacity: 0;
+    }
+    12% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(420px) rotate(540deg);
+      opacity: 0;
+    }
+  }
+
+  /* Route change: a 160ms fade with an 8px rise. */
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+html {
+  /* Light-only by design, so form controls are not dark-mode adjusted. */
+  color-scheme: light;
+}
+
+body {
+  @apply bg-canvas font-sans text-ink antialiased;
+}
+
+/* One focus ring for every interactive element. Violet, to stay distinct from
+   the tomato of primary actions and the red of errors. */
+:focus-visible {
+  outline: 3px solid var(--color-violet);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Decorative loops stop; transitions are shortened rather than removed so
+   state changes stay perceivable. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* A class rather than utilities: it needs a background-image and a
+   background-size together. */
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-canvas) 25%,
+    #f8f1e7 50%,
+    var(--color-canvas) 75%
+  );
+  background-size: 640px 100%;
+  animation: var(--animate-shimmer);
+}
